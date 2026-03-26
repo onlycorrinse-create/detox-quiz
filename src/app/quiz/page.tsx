@@ -1,14 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-
-const imgStyle = {
-  width: "100%",
-  height: "auto",
-  borderRadius: "16px",
-  marginBottom: "12px",
-  display: "block",
-};
+import { useState, useRef, useEffect } from "react";
+import { saveQuizResult } from "@/lib/supabase";
 
 const part1Groups = [
   {
@@ -49,7 +42,7 @@ const part1Groups = [
       "Просыпаетесь уже уставшими",
       "Хватает сил только на обязательные дела",
       "После еды возникает сонливость",
-      "Часто тянет на кофе, сладкое или энергетики",
+      "Часто тянет на кофе или сладкое",
     ],
   },
   {
@@ -61,7 +54,6 @@ const part1Groups = [
       "Часто болеете",
       "Долго восстанавливаетесь после болезни",
       "Повторяются грибковые инфекции",
-      "Был частый или длительный приём антибиотиков",
     ],
   },
   {
@@ -112,9 +104,23 @@ const part1Groups = [
     ],
   },
   {
+    id: "g8b",
+    title: "Приём препаратов и медикаментозная нагрузка",
+    subtitle: "",
+    image: "",
+    items: [
+      "Был частый или длительный приём антибиотиков",
+      "Принимаете или принимали гормональные препараты",
+      "Принимаете оральные контрацептивы (КОК)",
+      "Принимаете ингибиторы протонной помпы (ИПП, препараты от изжоги)",
+      "Часто принимаете жаропонижающие или обезболивающие",
+      "Есть регулярный приём любых лекарств на постоянной основе",
+    ],
+  },
+  {
     id: "g9",
     title: "Диагностика анализов (общий анализ крови)",
-    subtitle: "",
+    subtitle: "Отметьте, если данные вам известны:",
     image: "",
     items: [
       "СОЭ (Мужчины >15 мм/ч , Женщины >20 мм/ч)",
@@ -125,7 +131,7 @@ const part1Groups = [
   {
     id: "g10",
     title: "Диагностика анализов (биохимический анализ крови)",
-    subtitle: "",
+    subtitle: "Отметьте, если данные вам известны:",
     image: "",
     items: [
       "Общий белок > 70",
@@ -167,11 +173,13 @@ const part2Groups = [
     id: "g13",
     title: "Внешние проявления",
     subtitle: "",
-    image: "",
+    image: "/images/parasites.jpg",
     items: [
       "Есть неприятный запах изо рта или от тела, который сложно убрать",
       "Появляются высыпания в области шеи и груди без понятной причины",
       "Есть зуд кожи без чёткой причины",
+      "Есть красные родинки или точки на теле",
+      "Есть высыпания или воспаление на лице, которое не проходит",
     ],
   },
   {
@@ -226,43 +234,95 @@ const part2Groups = [
 
 type Screen = "start" | "part1" | "part2" | "result";
 
+// ── Progress Bar ──────────────────────────────────────────────────────────────
+function ProgressBar({ step }: { step: 1 | 2 | 3 }) {
+  const steps = ["Часть 1", "Часть 2", "Результат"];
+  return (
+    <div style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "16px 24px" }}>
+      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#374151" }}>Шаг {step} из 3</span>
+          <span style={{ fontSize: 15, color: "#6b7280" }}>{steps[step - 1]}</span>
+        </div>
+        <div style={{ height: 10, backgroundColor: "#e5e7eb", borderRadius: 99, overflow: "hidden" }}>
+          <div style={{
+            height: "100%",
+            width: step === 1 ? "33%" : step === 2 ? "66%" : "100%",
+            backgroundColor: "#10b981",
+            borderRadius: 99,
+            transition: "width 0.4s ease",
+          }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Group Block ───────────────────────────────────────────────────────────────
 function GroupBlock({
   group,
   checked,
   onToggle,
 }: {
-  group: typeof part1Groups[0];
+  group: (typeof part1Groups)[0];
   checked: Record<string, boolean>;
   onToggle: (key: string) => void;
 }) {
   return (
-    <div style={{ marginBottom: 28 }}>
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: "#1f2937", marginBottom: 8 }}>
+    <div style={{ marginBottom: 52 }}>
+      <h3 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 16, lineHeight: 1.3 }}>
         {group.title}
       </h3>
-      {group.image ? <img src={group.image} alt="" style={imgStyle} /> : null}
-      {group.subtitle ? (
-        <p style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>{group.subtitle}</p>
+      {group.image ? (
+        <img src={group.image} alt="" style={{ width: "100%", height: "auto", borderRadius: 16, marginBottom: 20, display: "block" }} />
       ) : null}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+      {group.subtitle ? (
+        <p style={{ fontSize: 18, color: "#4b5563", marginBottom: 16, lineHeight: 1.6 }}>{group.subtitle}</p>
+      ) : null}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {group.items.map((item, i) => {
           const key = group.id + "-" + i;
           const isChecked = !!checked[key];
           return (
-            <label key={key} style={{
-              display: "flex", alignItems: "flex-start", gap: 12,
-              padding: "12px 16px", borderRadius: 12,
-              border: isChecked ? "2px solid #10b981" : "2px solid #e5e7eb",
-              backgroundColor: isChecked ? "#ecfdf5" : "#ffffff",
-              cursor: "pointer",
-            }}>
+            <label
+              key={key}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 18,
+                padding: "18px 20px",
+                borderRadius: 14,
+                border: isChecked ? "3px solid #10b981" : "2px solid #d1d5db",
+                backgroundColor: isChecked ? "#ecfdf5" : "#ffffff",
+                cursor: "pointer",
+                minHeight: 60,
+              }}
+            >
+              <div style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                border: isChecked ? "3px solid #10b981" : "2.5px solid #9ca3af",
+                backgroundColor: isChecked ? "#10b981" : "#fff",
+                flexShrink: 0,
+                marginTop: 2,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                {isChecked && (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
               <input
                 type="checkbox"
                 checked={isChecked}
                 onChange={() => onToggle(key)}
-                style={{ marginTop: 2, width: 16, height: 16, accentColor: "#10b981", flexShrink: 0 }}
+                style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
               />
-              <span style={{ fontSize: 14, color: "#374151", lineHeight: 1.5 }}>{item}</span>
+              <span style={{ fontSize: 18, color: "#1f2937", lineHeight: 1.6, fontWeight: isChecked ? 600 : 400 }}>{item}</span>
             </label>
           );
         })}
@@ -289,15 +349,26 @@ export default function Home() {
   const goTo = (s: Screen) => { setScreen(s); scrollTop(); };
 
   const totalChecked = Object.values(checked).filter(Boolean).length;
-
   const allGroups = [...part1Groups, ...part2Groups];
-
-  // Build grouped checked items
   const byGroup: { title: string; items: string[] }[] = [];
   allGroups.forEach((g) => {
     const selected = g.items.filter((_, i) => checked[g.id + "-" + i]);
     if (selected.length > 0) byGroup.push({ title: g.title, items: selected });
   });
+
+  // Сохранение в Supabase при переходе на экран результата
+  useEffect(() => {
+    if (screen === "result") {
+      const answersObj: Record<number, string[]> = {};
+      allGroups.forEach((g, gi) => {
+        const selected = g.items.filter((_, i) => checked[g.id + "-" + i]);
+        if (selected.length > 0) answersObj[gi] = selected;
+      });
+      const level = totalChecked <= 10 ? "low" : totalChecked <= 25 ? "medium" : "high";
+      saveQuizResult({ answers: answersObj, selected_count: totalChecked, result_level: level });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
 
   const handleSaveImage = async () => {
     if (!resultRef.current) return;
@@ -331,23 +402,37 @@ export default function Home() {
     }
   };
 
-  // ── START ──────────────────────────────────────────────────────────────────
+  // ── START ─────────────────────────────────────────────────────────────────
   if (screen === "start") {
     return (
-      <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ maxWidth: 480, width: "100%", padding: "40px 16px" }}>
-          <img src="/images/olga-start.jpg" alt="" style={{ width: "100%", height: "auto", borderRadius: "20px", marginBottom: "20px", display: "block" }} />
-          <div style={{ textAlign: "center" }}>
-            <span style={{ display: "inline-block", backgroundColor: "#d1fae5", color: "#065f46", fontSize: 12, fontWeight: 700, letterSpacing: 2, padding: "4px 12px", borderRadius: 20, marginBottom: 16 }}>
+      <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <img
+            src="/images/olga-start.jpg"
+            alt=""
+            style={{ width: "100%", height: "auto", display: "block", borderRadius: "0 0 28px 28px" }}
+          />
+          <div style={{ textAlign: "center", padding: "36px 28px 60px" }}>
+            <span style={{ display: "inline-block", backgroundColor: "#d1fae5", color: "#065f46", fontSize: 15, fontWeight: 700, letterSpacing: 2, padding: "8px 22px", borderRadius: 20, marginBottom: 24 }}>
               ТЕСТ
             </span>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12, lineHeight: 1.3 }}>
+            <h1 style={{ fontSize: "clamp(30px, 6vw, 44px)", fontWeight: 800, color: "#111827", marginBottom: 20, lineHeight: 1.2 }}>
               Насколько ваш организм нуждается в детоксе?
             </h1>
-            <p style={{ color: "#6b7280", fontSize: 15, marginBottom: 32, lineHeight: 1.6 }}>
-              Ответьте на вопросы ниже и отметьте все утверждения, которые наблюдались у вас хотя бы несколько раз за последние 3–6 месяцев.
+            <p style={{ color: "#374151", fontSize: "clamp(17px, 3vw, 20px)", marginBottom: 40, lineHeight: 1.8 }}>
+              Нужен ли вашему организму детокс? Ответьте на вопросы ниже и отметьте утверждения, которые вы замечали у себя хотя бы несколько раз за последние 3–6 месяцев. Если симптомов нет, переходите к следующему вопросу.
             </p>
-            <button onClick={() => goTo("part1")} style={{ display: "block", width: "100%", backgroundColor: "#10b981", color: "#ffffff", fontWeight: 700, fontSize: 16, padding: "14px 24px", borderRadius: 14, border: "none", cursor: "pointer" }}>
+            <button
+              onClick={() => goTo("part1")}
+              style={{
+                display: "block", width: "100%",
+                backgroundColor: "#10b981", color: "#ffffff",
+                fontWeight: 800, fontSize: "clamp(18px, 3.5vw, 22px)",
+                padding: "24px 24px", borderRadius: 18,
+                border: "none", cursor: "pointer",
+                boxShadow: "0 4px 16px rgba(16,185,129,0.35)",
+              }}
+            >
               Пройти тест →
             </button>
           </div>
@@ -356,153 +441,175 @@ export default function Home() {
     );
   }
 
-  // ── PART 1 ─────────────────────────────────────────────────────────────────
+  // ── PART 1 ───────────────────────────────────────────────────────────────
   if (screen === "part1") {
     return (
       <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
-        <div style={{ maxWidth: 680, margin: "0 auto", padding: "40px 16px 120px" }}>
-          <div style={{ backgroundColor: "#065f46", color: "#fff", fontSize: 16, fontWeight: 800, letterSpacing: 1, padding: "12px 20px", borderRadius: 12, marginBottom: 28 }}>
+        <ProgressBar step={1} />
+        <div style={{ maxWidth: 760, margin: "0 auto", padding: "40px 24px 140px" }}>
+          <div style={{ backgroundColor: "#065f46", color: "#fff", fontSize: 20, fontWeight: 800, letterSpacing: 0.5, padding: "20px 28px", borderRadius: 16, marginBottom: 40 }}>
             ЧАСТЬ 1. Общая диагностика
           </div>
           {part1Groups.map((g) => (
             <GroupBlock key={g.id} group={g} checked={checked} onToggle={toggle} />
           ))}
         </div>
-        <div className="no-print" style={{ position: "fixed", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTop: "1px solid #e5e7eb", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <button onClick={() => goTo("start")} style={{ fontSize: 14, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>← Назад</button>
-          <button onClick={() => goTo("part2")} style={{ backgroundColor: "#10b981", color: "#fff", fontWeight: 700, fontSize: 15, padding: "12px 32px", borderRadius: 12, border: "none", cursor: "pointer" }}>
-            Далее: Часть 2 →
-          </button>
+        <div className="no-print" style={{ position: "fixed", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTop: "2px solid #e5e7eb", padding: "16px 24px 20px" }}>
+          <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", alignItems: "center", gap: 16 }}>
+            <button
+              onClick={() => goTo("start")}
+              style={{ fontSize: 17, color: "#6b7280", background: "none", border: "2px solid #e5e7eb", borderRadius: 14, padding: "16px 24px", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+            >
+              ← Назад
+            </button>
+            <button
+              onClick={() => goTo("part2")}
+              style={{ flex: 1, backgroundColor: "#10b981", color: "#fff", fontWeight: 800, fontSize: 19, padding: "20px 24px", borderRadius: 16, border: "none", cursor: "pointer", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }}
+            >
+              Далее: Часть 2 →
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── PART 2 ─────────────────────────────────────────────────────────────────
+  // ── PART 2 ───────────────────────────────────────────────────────────────
   if (screen === "part2") {
     return (
       <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
-        <div style={{ maxWidth: 680, margin: "0 auto", padding: "40px 16px 120px" }}>
-          <div style={{ backgroundColor: "#065f46", color: "#fff", fontSize: 16, fontWeight: 800, letterSpacing: 1, padding: "12px 20px", borderRadius: 12, marginBottom: 28 }}>
+        <ProgressBar step={2} />
+        <div style={{ maxWidth: 760, margin: "0 auto", padding: "40px 24px 140px" }}>
+          <div style={{ backgroundColor: "#065f46", color: "#fff", fontSize: 20, fontWeight: 800, letterSpacing: 0.5, padding: "20px 28px", borderRadius: 16, marginBottom: 40 }}>
             ЧАСТЬ 2. Есть ли риск паразитарной нагрзуки
           </div>
           {part2Groups.map((g) => (
             <GroupBlock key={g.id} group={g} checked={checked} onToggle={toggle} />
           ))}
         </div>
-        <div className="no-print" style={{ position: "fixed", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTop: "1px solid #e5e7eb", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <button onClick={() => goTo("part1")} style={{ fontSize: 14, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>← Назад</button>
-          <button onClick={() => goTo("result")} style={{ backgroundColor: "#111827", color: "#fff", fontWeight: 700, fontSize: 15, padding: "12px 32px", borderRadius: 12, border: "none", cursor: "pointer" }}>
-            Завершить →
-          </button>
+        <div className="no-print" style={{ position: "fixed", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTop: "2px solid #e5e7eb", padding: "16px 24px 20px" }}>
+          <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", alignItems: "center", gap: 16 }}>
+            <button
+              onClick={() => goTo("part1")}
+              style={{ fontSize: 17, color: "#6b7280", background: "none", border: "2px solid #e5e7eb", borderRadius: 14, padding: "16px 24px", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+            >
+              ← Назад
+            </button>
+            <button
+              onClick={() => goTo("result")}
+              style={{ flex: 1, backgroundColor: "#111827", color: "#fff", fontWeight: 800, fontSize: 19, padding: "20px 24px", borderRadius: 16, border: "none", cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}
+            >
+              Завершить тест →
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── RESULT SCREEN ──────────────────────────────────────────────────────────
+  // ── RESULT ────────────────────────────────────────────────────────────────
   return (
     <div style={{ backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <style dangerouslySetInnerHTML={{ __html: printStyles }} />
-      <div style={{ maxWidth: 680, margin: "0 auto", padding: "40px 16px 140px" }}>
+      <ProgressBar step={3} />
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "40px 24px 60px" }}>
 
-        {/* Result card — this is what gets saved as image */}
-        <div ref={resultRef} style={{ backgroundColor: "#ffffff", borderRadius: 24, padding: 32, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
-          {/* Header */}
-          <div style={{ textAlign: "center", marginBottom: 28 }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🌿</div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: "#111827", marginBottom: 6 }}>
+        {/* Result card */}
+        <div
+          ref={resultRef}
+          style={{ backgroundColor: "#ffffff", borderRadius: 24, padding: "40px 36px", boxShadow: "0 2px 20px rgba(0,0,0,0.07)", marginBottom: 32 }}
+        >
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontSize: 52, marginBottom: 12 }}>🌿</div>
+            <h2 style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12 }}>
               Насколько ваш организм нуждается в детоксе?
             </h2>
-            <div style={{ display: "inline-block", backgroundColor: "#d1fae5", color: "#065f46", fontWeight: 700, fontSize: 14, padding: "6px 16px", borderRadius: 20 }}>
+            <div style={{ display: "inline-block", backgroundColor: "#d1fae5", color: "#065f46", fontWeight: 700, fontSize: 18, padding: "10px 24px", borderRadius: 20 }}>
               Отмечено утверждений: {totalChecked}
             </div>
           </div>
 
-          {/* Checked items */}
           {byGroup.length === 0 ? (
-            <p style={{ textAlign: "center", color: "#9ca3af", fontSize: 15 }}>
+            <p style={{ textAlign: "center", color: "#6b7280", fontSize: 18 }}>
               Вы не отметили ни одного утверждения
             </p>
           ) : (
             byGroup.map((group) => (
-              <div key={group.title} style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid #d1fae5" }}>
+              <div key={group.title} style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12, paddingBottom: 8, borderBottom: "2px solid #d1fae5" }}>
                   {group.title}
                 </div>
                 {group.items.map((item, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
-                    <span style={{ color: "#10b981", fontWeight: 700, flexShrink: 0, fontSize: 14 }}>✓</span>
-                    <span style={{ fontSize: 14, color: "#374151", lineHeight: 1.5 }}>{item}</span>
+                  <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
+                    <span style={{ color: "#10b981", fontWeight: 700, flexShrink: 0, fontSize: 18, marginTop: 1 }}>✓</span>
+                    <span style={{ fontSize: 17, color: "#1f2937", lineHeight: 1.6 }}>{item}</span>
                   </div>
                 ))}
               </div>
             ))
           )}
 
-          {/* Footer */}
-          <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #f3f4f6", textAlign: "center", color: "#d1d5db", fontSize: 12 }}>
+          <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid #f3f4f6", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
             pomoynetskayabot.ru
           </div>
         </div>
 
         {/* Action buttons */}
-        <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* Save as image */}
+          <p style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: "0 0 4px", textAlign: "center" }}>
+            Сохраните свой результат
+          </p>
+
           <button
             onClick={handleSaveImage}
             disabled={imgLoading}
-            style={{ width: "100%", backgroundColor: "#111827", color: "#fff", fontWeight: 700, fontSize: 15, padding: "14px 24px", borderRadius: 12, border: "none", cursor: "pointer", opacity: imgLoading ? 0.6 : 1 }}
+            style={{ width: "100%", backgroundColor: "#111827", color: "#fff", fontWeight: 700, fontSize: 18, padding: "20px 24px", borderRadius: 16, border: "none", cursor: "pointer", opacity: imgLoading ? 0.6 : 1 }}
           >
-            {imgLoading ? "Сохраняю..." : "🖼 Сохранить результат как изображение"}
+            {imgLoading ? "Сохраняю..." : "Сохранить результат"}
           </button>
 
-          {/* Save as PDF */}
-          <button
-            onClick={() => window.print()}
-            style={{ width: "100%", backgroundColor: "#374151", color: "#fff", fontWeight: 700, fontSize: 15, padding: "14px 24px", borderRadius: 12, border: "none", cursor: "pointer" }}
-          >
-            📄 Сохранить как PDF
-          </button>
-
-          {/* Send by email */}
           <button
             onClick={() => setShowEmailInput(!showEmailInput)}
-            style={{ width: "100%", backgroundColor: "#ecfdf5", color: "#065f46", fontWeight: 700, fontSize: 15, padding: "14px 24px", borderRadius: 12, border: "2px solid #a7f3d0", cursor: "pointer" }}
+            style={{ width: "100%", backgroundColor: "#ecfdf5", color: "#065f46", fontWeight: 700, fontSize: 18, padding: "20px 24px", borderRadius: 16, border: "2px solid #6ee7b7", cursor: "pointer" }}
           >
             ✉️ Отправить себе на почту
           </button>
 
           {showEmailInput && (
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: 16, padding: 20 }}>
+            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: 18, padding: 28 }}>
+              <p style={{ fontSize: 17, color: "#374151", marginBottom: 14, fontWeight: 600 }}>Введите ваш email:</p>
               <input
                 type="email"
-                placeholder="Введите ваш email"
+                placeholder="example@mail.ru"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid #d1d5db", fontSize: 15, marginBottom: 12, boxSizing: "border-box" as const }}
+                style={{ width: "100%", padding: "16px 18px", borderRadius: 12, border: "2px solid #d1d5db", fontSize: 18, marginBottom: 14, boxSizing: "border-box" as const, color: "#111827" }}
               />
               <button
                 onClick={handleSendEmail}
                 disabled={emailStatus === "sending" || !email}
-                style={{ width: "100%", backgroundColor: "#10b981", color: "#fff", fontWeight: 700, fontSize: 15, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", opacity: emailStatus === "sending" ? 0.6 : 1 }}
+                style={{ width: "100%", backgroundColor: "#10b981", color: "#fff", fontWeight: 700, fontSize: 18, padding: "18px", borderRadius: 14, border: "none", cursor: "pointer", opacity: emailStatus === "sending" ? 0.6 : 1 }}
               >
-                {emailStatus === "sending" ? "Отправляю..." : emailStatus === "sent" ? "✓ Отправлено!" : emailStatus === "error" ? "Ошибка, попробуйте ещё" : "Отправить"}
+                {emailStatus === "sending" ? "Отправляю..." : emailStatus === "sent" ? "✓ Письмо отправлено!" : emailStatus === "error" ? "Ошибка. Попробуйте ещё раз" : "Отправить"}
               </button>
             </div>
           )}
 
-          {/* Restart */}
           <button
             onClick={() => { setChecked({}); setEmail(""); setEmailStatus("idle"); setShowEmailInput(false); goTo("start"); }}
-            style={{ width: "100%", backgroundColor: "transparent", color: "#9ca3af", fontWeight: 600, fontSize: 14, padding: "12px", borderRadius: 12, border: "1px solid #e5e7eb", cursor: "pointer" }}
+            style={{ width: "100%", backgroundColor: "transparent", color: "#6b7280", fontWeight: 600, fontSize: 17, padding: "16px", borderRadius: 14, border: "2px solid #e5e7eb", cursor: "pointer" }}
           >
             Пройти тест заново
           </button>
+
+          <div style={{ backgroundColor: "#f0fdf4", border: "2px solid #86efac", borderRadius: 18, padding: "24px 24px", marginTop: 8 }}>
+            <p style={{ fontSize: 17, color: "#14532d", lineHeight: 1.7, margin: 0, fontWeight: 500 }}>
+              🌿 <strong>1 и 2 апреля</strong> на практикуме по детоксу и антипаразитарной программе я подробно разберу результаты тестирования: покажу, как их правильно интерпретировать и на что обращать внимание.
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
